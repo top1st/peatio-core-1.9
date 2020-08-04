@@ -14,4 +14,4 @@ deploy:
   gem: peatio
   on:
     tags: true
-    repo: rubykube/peatio-core
+    repo: top1st/peatio-core-1.9
