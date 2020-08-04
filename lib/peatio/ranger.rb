@@ -4,7 +4,6 @@ module Peatio::Ranger
       @authenticator = authenticator
       @socket = socket
       @logger = logger
-      @streams = []
     end
 
     def send(method, data)
@@ -13,21 +12,36 @@ module Peatio::Ranger
       @socket.send payload
     end
 
-    def handle(msg)
-      authorized = false
+    def update_streams
+      @socket.instance_variable_set(:@connection_handler, @client)
+    end
+
+    def subscribe(streams)
+      raise "Streams must be an array of strings" unless streams.is_a?(Array)
+      streams.each do |stream|
+        next if stream.nil?
+        @client.streams[stream] = true
+      end
+      send :success, message: "subscribed", streams: @client.streams.keys
+    end
+
+    def unsubscribe(streams)
+      raise "Streams must be an array of strings" unless streams.is_a?(Array)
+      streams.each do |stream|
+        next if stream.nil?
+        @client.streams.delete(stream)
+      end
+      send :success, message: "unsubscribed", streams: @client.streams.keys
+    end
+
+    def authenticate(jwt)
       begin
-        data = JSON.parse(msg)
-
         token = data["jwt"]
-
         payload = @authenticator.authenticate!(token)
-
         authorized = true
-      rescue JSON::ParserError
       rescue => error
         @logger.error error.message
       end
-
       if !authorized
         send :error, message: "Authentication failed."
         return
@@ -36,27 +50,50 @@ module Peatio::Ranger
       @client.user = payload[:uid]
       @client.authorized = true
 
-      @logger.info "ranger: user #{@client.user} authenticated #{@streams}"
-
+      @logger.info "ranger: user #{@client.user} authenticated"
       send :success, message: "Authenticated."
+
     end
 
-    def handshake(handshake)
-      query = URI::decode_www_form(handshake.query_string)
+    def handle(msg)
+      authorized = false
+      begin
+        data = JSON.parse(msg)
 
-      @streams = query.map do |item|
-        if item.first == "stream"
-          item.last
+        case data["event"]
+        when "subscribe"
+          subscribe data["streams"]
+        when "unsubscribe"
+          unsubscribe data["streams"]
+        when "jwt"
+          authenticate data["jwt"]
+
+        end
+      rescue JSON::ParserError
+      rescue => error
+        @logger.error error.message
+      end
+    end
+
+    def handshake(hs)
+      @client = Peatio::MQ::Events::Client.new(@socket)
+      query = URI::decode_www_form(hs.query_string)
+      subscribe(query.map {|item| item.last if item.first == "stream"})
+      @logger.info "ranger: WebSocket connection openned"
+
+      if hs.headers_downcased.key?("authorization")
+        authorized, payload = authenticate(hs.headers["authorization"])
+
+        if !authorized
+          @logger.info "ranger: #{@client.user} authentication failed"
+          raise EM::WebSocket::HandshakeError, "Authorization failed"
+        else
+          @logger.info [authorized, payload].inspect
+          @client.user = payload[:uid]
+          @client.authorized = true
+          @logger.info "ranger: user #{@client.user} authenticated #{@client.streams}"
         end
       end
-
-      @logger.info "ranger: WebSocket connection openned, streams: #{@streams}"
-
-      @client = Peatio::MQ::Events::Client.new(
-        @socket, @streams,
-      )
-
-      @socket.instance_variable_set(:@connection_handler, @client)
     end
   end
 
@@ -89,6 +126,10 @@ module Peatio::Ranger
 
         socket.onmessage do |msg|
           connection.handle(msg)
+        end
+
+        socket.onping do |value|
+          logger.info "Received ping: #{value}"
         end
 
         socket.onclose do
