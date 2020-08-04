@@ -4,14 +4,14 @@ $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require "peatio/version"
 
 Gem::Specification.new do |spec|
-  spec.name = "peatio"
+  spec.name = "peatio1.9"
   spec.version = Peatio::VERSION
-  spec.authors = ["Louis B.", "Camille M."]
-  spec.email = ["lbellet@heliostech.fr"]
+  spec.authors = ["topdev"]
+  spec.email = ["riguang102@gmail.com"]
 
   spec.summary = %q{Peatio is a gem for running critical core services}
   spec.description = %q{Peatio gem contains microservices and command line tools}
-  spec.homepage = "https://www.peatio.tech"
+  spec.homepage = "https://github.com/top1st/peatio-core-1.9"
 
   # Specify which files should be added to the gem when it is released.
   # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
