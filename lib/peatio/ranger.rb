@@ -34,9 +34,8 @@ module Peatio::Ranger
       send :success, message: "unsubscribed", streams: @client.streams.keys
     end
 
-    def authenticate(jwt)
+    def authenticate(token)
       begin
-        token = data["jwt"]
         payload = @authenticator.authenticate!(token)
         authorized = true
       rescue => error
@@ -78,21 +77,13 @@ module Peatio::Ranger
     def handshake(hs)
       @client = Peatio::MQ::Events::Client.new(@socket)
       query = URI::decode_www_form(hs.query_string)
-      subscribe(query.map {|item| item.last if item.first == "stream"})
+      subscribe(query.map { |item| item.last if item.first == "stream" })
       @logger.info "ranger: WebSocket connection openned"
 
       if hs.headers_downcased.key?("authorization")
-        authorized, payload = authenticate(hs.headers["authorization"])
+        authenticate(hs.headers["authorization"])
 
-        if !authorized
-          @logger.info "ranger: #{@client.user} authentication failed"
-          raise EM::WebSocket::HandshakeError, "Authorization failed"
-        else
-          @logger.info [authorized, payload].inspect
-          @client.user = payload[:uid]
-          @client.authorized = true
-          @logger.info "ranger: user #{@client.user} authenticated #{@client.streams}"
-        end
+        @logger.info "ranger: user #{@client.user} authenticated #{@client.streams}"
       end
     end
   end
@@ -114,9 +105,9 @@ module Peatio::Ranger
       Peatio::MQ::Events.subscribe!
 
       EM::WebSocket.start(
-        host: host,
-        port: port,
-        secure: false,
+          host: host,
+          port: port,
+          secure: false,
       ) do |socket|
         connection = Connection.new(authenticator, socket, logger)
 

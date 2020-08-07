@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    peatio1.9 (0.4.5)
+    peatio1.9 (0.4.6)
       amqp
       bunny
       clamp

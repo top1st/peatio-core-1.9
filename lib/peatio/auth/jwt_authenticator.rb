@@ -115,13 +115,14 @@ module Peatio::Auth
     private
 
     def decode_and_verify_token(token)
+      p JWT.decode(token, @public_key, false, @verify_options), Time.now.to_i
       payload, header = JWT.decode(token, @public_key, true, @verify_options)
 
       payload.keys.each { |k| payload[k.to_sym] = payload.delete(k) }
 
       payload
     rescue JWT::DecodeError => e
-      raise(Peatio::Auth::Error, "Failed to decode and verify JWT")
+      raise(Peatio::Auth::Error, "Failed to decode and verify JWT:  #{e.message}")
     end
   end
 end
